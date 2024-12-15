@@ -8,37 +8,45 @@ pub enum PlayerCommand {
     Play,
     Pause,
     Stop,
-    SkipForward(u64),    // seconds
-    SkipBackward(u64),   // seconds
-    VolumeUp(f32),       // volume increment
-    VolumeDown(f32),     // volume decrement
+    SkipForward,
+    SkipBackward,
+    VolumeUp(f32),
+    VolumeDown(f32),
     Quit,
     Unknown,
 }
 
 pub struct Controls {
-    skip_amount: u64,
+    skip_seconds: i64,
     volume_step: f32,
     last_command_time: Instant,
 }
 
 impl Controls {
-    pub fn new(skip_amount: u64, volume_step: f32) -> Self {
-        Self { 
-            skip_amount,
-            volume_step,
+    pub fn new() -> Self {
+        Self {
+            skip_seconds: 10,
+            volume_step: 0.1,
             last_command_time: Instant::now() - (COOLDOWN + Duration::from_millis(1)), // Safely past cooldown
         }
     }
 
+    pub fn skip_seconds(&self) -> i64 {
+        self.skip_seconds
+    }
+
+    pub fn volume_step(&self) -> f32 {
+        self.volume_step
+    }
+
     fn translate_command(&self, input: &str) -> PlayerCommand {
-        match input {
+        match input.trim() {
             "p" => PlayerCommand::Pause,
             "q" => PlayerCommand::Quit,
             "+" => PlayerCommand::VolumeUp(self.volume_step),
             "-" => PlayerCommand::VolumeDown(self.volume_step),
-            "f" => PlayerCommand::SkipForward(self.skip_amount),
-            "b" => PlayerCommand::SkipBackward(self.skip_amount),
+            "f" => PlayerCommand::SkipForward,
+            "b" => PlayerCommand::SkipBackward,
             _ => PlayerCommand::Unknown,
         }
     }
@@ -72,8 +80,8 @@ impl Controls {
         println!("  q: Stop and quit");
         println!("  +: Volume up by {:.1}", self.volume_step);
         println!("  -: Volume down by {:.1}", self.volume_step);
-        println!("  f: Skip forward {} seconds", self.skip_amount);
-        println!("  b: Skip backward {} seconds", self.skip_amount);
+        println!("  f: Skip forward {} seconds", self.skip_seconds);
+        println!("  b: Skip backward {} seconds", self.skip_seconds);
         println!("\nPress Enter after each command");
     }
 }
@@ -84,7 +92,7 @@ mod tests {
     use std::thread;
 
     fn setup_controls() -> Controls {
-        Controls::new(10, 0.1)
+        Controls::new()
     }
 
     #[test]
@@ -134,8 +142,8 @@ mod tests {
     fn test_translate_skip_commands() {
         let controls = setup_controls();
         
-        assert_eq!(controls.translate_command("f"), PlayerCommand::SkipForward(10));
-        assert_eq!(controls.translate_command("b"), PlayerCommand::SkipBackward(10));
+        assert_eq!(controls.translate_command("f"), PlayerCommand::SkipForward);
+        assert_eq!(controls.translate_command("b"), PlayerCommand::SkipBackward);
     }
 
     #[test]

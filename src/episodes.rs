@@ -1,91 +1,113 @@
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
-use std::path::Path;
-use std::time::Duration;
-use anyhow::{Result, Context};
+use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
+use anyhow::{Context, Result};
 use rss::Channel;
-use reqwest::blocking::Client;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct Episode {
     pub title: String,
-    pub link: Option<String>,
-    pub description: Option<String>,
-    pub pub_date: Option<String>,
-    pub duration: Option<String>,
     pub audio_url: Option<String>,
+    pub duration: Option<Duration>,
+    pub link: Option<String>,
+    pub pub_date: Option<String>,
+    pub description: Option<String>,
 }
 
-pub fn read_rss_feeds(file_path: &str) -> io::Result<Vec<String>> {
-    let path = Path::new(file_path);
-    if !path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("File not found: {}", file_path)
-        ));
+impl Episode {
+    pub fn from_item(item: rss::Item) -> Option<Self> {
+        let title = item.title()?;
+        let enclosure = item.enclosure()?;
+        let audio_url = if enclosure.mime_type.starts_with("audio/") {
+            Some(enclosure.url.to_string())
+        } else {
+            None
+        };
+
+        let duration = item.itunes_ext()
+            .and_then(|ext| ext.duration.clone())
+            .and_then(|dur| parse_duration(&dur));
+
+        Some(Episode {
+            title: title.to_string(),
+            audio_url,
+            duration,
+            link: item.link().map(|s| s.to_string()),
+            pub_date: item.pub_date().map(|s| s.to_string()),
+            description: item.description().map(|s| s.to_string()),
+        })
     }
-
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-    let mut feeds = Vec::new();
-
-    for line_result in reader.lines() {
-        let line = line_result?;
-        let trimmed = line.trim();
-        if !trimmed.is_empty() && !is_comment(trimmed) {
-            feeds.push(trimmed.to_string());
-        }
-    }
-
-    Ok(feeds)
 }
 
-fn is_comment(line: &str) -> bool {
-    line.starts_with('#') || line.starts_with("--") || line.starts_with("//")
+pub fn read_rss_feeds(filename: &str) -> Result<Vec<String>> {
+    let content = std::fs::read_to_string(filename)?;
+    Ok(content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .map(|line| line.trim().to_string())
+        .collect())
 }
 
 pub fn fetch_episodes(feed_url: &str) -> Result<Vec<Episode>> {
-    // Create a blocking HTTP client with timeout
-    let client = Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()
-        .context("Failed to create HTTP client")?;
+    let client = reqwest::blocking::Client::new();
     
-    // Fetch the RSS feed content
     let content = client.get(feed_url)
         .send()
-        .context("Failed to fetch RSS feed")?
+        .with_context(|| format!("Failed to fetch RSS feed from {}", feed_url))?
         .bytes()
-        .context("Failed to read response body")?;
+        .context("Failed to read RSS feed content")?;
     
-    // Parse the RSS feed
-    let channel: Channel = Channel::read_from(&content[..])
-        .context("Failed to parse RSS feed")?;
+    let channel = Channel::read_from(&content[..])
+        .with_context(|| format!("Failed to parse RSS feed from {}", feed_url))?;
     
-    // Convert items to our Episode struct
     let episodes: Vec<Episode> = channel.items()
         .iter()
-        .map(|item| Episode {
-            title: item.title().map_or("Untitled".to_string(), ToString::to_string),
-            link: item.link().map(String::from),
-            description: item.description().map(String::from),
-            pub_date: item.pub_date().map(String::from),
-            duration: item.itunes_ext()
-                .and_then(|itunes| itunes.duration())
-                .map(String::from),
-            audio_url: item.enclosure().map(|e| e.url().to_string()),
-        })
+        .filter_map(|item| Episode::from_item(item.clone()))
         .collect();
-
-    if episodes.is_empty() {
-        anyhow::bail!("No episodes found in the feed");
-    }
-
+    
+    println!("Found {} episodes", episodes.len());
     Ok(episodes)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    // Unit tests can go here if needed
+pub fn parse_duration(duration_str: &str) -> Option<Duration> {
+    // Try HH:MM:SS format
+    if let Some(duration) = parse_hhmmss(duration_str) {
+        return Some(duration);
+    }
+    
+    // Try MM:SS format
+    if let Some(duration) = parse_mmss(duration_str) {
+        return Some(duration);
+    }
+    
+    // Try seconds format
+    duration_str.parse::<u64>()
+        .ok()
+        .map(Duration::from_secs)
+}
+
+fn parse_hhmmss(duration_str: &str) -> Option<Duration> {
+    let parts: Vec<&str> = duration_str.split(':').collect();
+    if parts.len() == 3 {
+        let hours = parts[0].parse::<u64>().ok()?;
+        let minutes = parts[1].parse::<u64>().ok()?;
+        let seconds = parts[2].parse::<u64>().ok()?;
+        Some(Duration::from_secs(hours * 3600 + minutes * 60 + seconds))
+    } else {
+        None
+    }
+}
+
+fn parse_mmss(duration_str: &str) -> Option<Duration> {
+    let parts: Vec<&str> = duration_str.split(':').collect();
+    if parts.len() == 2 {
+        let minutes = parts[0].parse::<u64>().ok()?;
+        let seconds = parts[1].parse::<u64>().ok()?;
+        Some(Duration::from_secs(minutes * 60 + seconds))
+    } else {
+        None
+    }
 }

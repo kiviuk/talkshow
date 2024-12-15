@@ -1,30 +1,29 @@
 use anyhow::Result;
-use rss_reader::{read_rss_feeds, fetch_episodes, stream_episode_audio};
+use rss_reader::{read_rss_feeds, fetch_episodes, AudioControl};
 
 fn main() -> Result<()> {
-    // Read RSS feed URLs from file
-    let feeds = read_rss_feeds("rss-db.txt")?;
+    let feed_url = read_rss_feeds("rss-db.txt")?
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("No feeds found"))?
+        .clone();
     
-    // Fetch episodes from the first feed
-    if let Some(feed_url) = feeds.first() {
-        println!("Fetching episodes from: {}", feed_url);
-        let episodes = fetch_episodes(feed_url)?;
-        
-        // Print available episodes
-        println!("\nAvailable Episodes:");
-        for (i, episode) in episodes.iter().enumerate() {
-            println!("{}. {}", i + 1, episode.title);
-        }
-        
-        // Play the first episode
-        if let Some(episode) = episodes.first() {
-            println!("\nPlaying first episode...");
-            stream_episode_audio(episode)?;
-        } else {
-            println!("No episodes found!");
-        }
-    } else {
-        println!("No RSS feeds found in rss-db.txt!");
+    let episodes = fetch_episodes(&feed_url)?;
+    
+    // List episodes
+    for (i, episode) in episodes.iter().enumerate() {
+        println!("{}. {}", i + 1, episode.title);
+    }
+    
+    // Get episode selection
+    println!("\nSelect episode (1-{}):", episodes.len());
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    
+    let episode_num: usize = input.trim().parse()?;
+    if episode_num > 0 && episode_num <= episodes.len() {
+        let episode = &episodes[episode_num - 1];
+        let mut audio_control = AudioControl::new()?;
+        audio_control.play_episode(episode)?;
     }
     
     Ok(())

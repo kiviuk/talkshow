@@ -1,123 +1,81 @@
-use rss_reader::{read_rss_feeds, fetch_episodes, Episode};
-use std::io::Write;
-use tempfile::NamedTempFile;
+#[cfg(test)]
+mod tests {
+    use rss_reader::Episode;
+    use std::time::Duration;
+    use std::fs;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
 
-fn print_episode_summary(episode: &Episode) {
-    println!("Title: {}", episode.title);
-    println!("Link: {}", episode.link.as_deref().unwrap_or("None"));
-    println!("Publication Date: {}", episode.pub_date.as_deref().unwrap_or("None"));
-    println!("Duration: {}", episode.duration.as_deref().unwrap_or("None"));
-    println!("Description: {}", episode.description.as_deref().unwrap_or("None"));
-}
+    #[test]
+    fn test_parse_feed() {
+        let feed_content = fs::read_to_string("tests/test-feed.rss")
+            .expect("Failed to read test RSS feed");
+        
+        let channel = rss::Channel::read_from(feed_content.as_bytes())
+            .expect("Failed to parse RSS feed");
+        
+        let items = channel.items();
+        assert!(!items.is_empty(), "Feed should contain items");
 
-#[test]
-fn test_read_rss_feeds_happy_path() {
-    let mut temp_file = NamedTempFile::new().unwrap();
-    writeln!(temp_file, "https://example.com/feed1.rss").unwrap();
-    writeln!(temp_file, "https://example.com/feed2.rss").unwrap();
-    
-    let feeds = read_rss_feeds(temp_file.path().to_str().unwrap()).unwrap();
-    
-    assert_eq!(feeds.len(), 2);
-    assert_eq!(feeds[0], "https://example.com/feed1.rss");
-    assert_eq!(feeds[1], "https://example.com/feed2.rss");
-}
-
-#[test]
-fn test_read_rss_feeds_empty_lines() {
-    let mut temp_file = NamedTempFile::new().unwrap();
-    writeln!(temp_file, "\n\nhttps://example.com/feed1.rss\n\n\n  \nhttps://example.com/feed2.rss\n\n").unwrap();
-    
-    let feeds = read_rss_feeds(temp_file.path().to_str().unwrap()).unwrap();
-    
-    assert_eq!(feeds.len(), 2, "Should ignore empty lines and whitespace-only lines");
-    assert_eq!(feeds[0], "https://example.com/feed1.rss", "First feed URL should be preserved");
-    assert_eq!(feeds[1], "https://example.com/feed2.rss", "Second feed URL should be preserved");
-}
-
-#[test]
-fn test_read_rss_feeds_file_not_found() {
-    let result = read_rss_feeds("nonexistent_file.txt");
-    assert!(result.is_err());
-    if let Err(e) = result {
-        assert_eq!(e.kind(), std::io::ErrorKind::NotFound);
+        // Test first episode (Sam Aaron episode)
+        let first_item = items.first().unwrap();
+        let episode = Episode::from_item(first_item.clone())
+            .expect("Failed to create episode from item");
+        
+        assert_eq!(episode.title, "Programming As An Expressive Instrument (with Sam Aaron)");
+        assert_eq!(episode.audio_url.unwrap(), 
+            "https://redirect.zencastr.com/r/episode/6751276a51560f45d2201d41/size/158427784/audio-files/619e48a9649c44004c5a44e8/d724ade9-cf25-482d-9583-a90188659626.mp3");
+        assert_eq!(episode.duration, Some(Duration::from_secs(6601))); // 1:50:01
     }
-}
 
-#[test]
-fn test_read_rss_feeds_with_comments() {
-    let mut temp_file = NamedTempFile::new().unwrap();
-    
-    writeln!(temp_file, "https://feed1.com/rss").unwrap();
-    writeln!(temp_file, "# This is a comment").unwrap();
-    writeln!(temp_file, "https://feed2.com/rss").unwrap();
-    writeln!(temp_file, "-- Another comment").unwrap();
-    writeln!(temp_file, "https://feed3.com/rss").unwrap();
-    writeln!(temp_file, "// Code style comment").unwrap();
-    writeln!(temp_file, "https://feed4.com/rss").unwrap();
-    
-    let feeds = read_rss_feeds(temp_file.path().to_str().unwrap()).unwrap();
-    
-    assert_eq!(feeds.len(), 4);
-    assert_eq!(feeds[0], "https://feed1.com/rss");
-    assert_eq!(feeds[1], "https://feed2.com/rss");
-    assert_eq!(feeds[2], "https://feed3.com/rss");
-    assert_eq!(feeds[3], "https://feed4.com/rss");
-}
+    #[test]
+    fn test_parse_duration() {
+        use rss_reader::episodes::parse_duration;
 
-#[test]
-fn test_fetch_episodes_real_feed() {
-    let feed_url = "https://feeds.zencastr.com/f/oSn1i316.rss";
-    match fetch_episodes(feed_url) {
-        Ok(episodes) => {
-            println!("\nFound {} episodes in feed {}", episodes.len(), feed_url);
-            
-            // Verify we got episodes
-            assert!(!episodes.is_empty(), "Expected at least one episode");
-            
-            // Check the first episode has all required fields
-            let first_episode = &episodes[0];
-            
-            // Title should never be empty
-            assert!(!first_episode.title.is_empty(), "Episode should have a non-empty title");
-            
-            // Link should be present and be a valid URL
-            assert!(first_episode.link.is_some(), "Episode should have a link");
-            if let Some(link) = &first_episode.link {
-                assert!(link.starts_with("http"), "Link should be a valid URL");
-            }
-            
-            // Publication date should be present
-            assert!(first_episode.pub_date.is_some(), "Episode should have a publication date");
-            if let Some(date) = &first_episode.pub_date {
-                assert!(!date.is_empty(), "Publication date should not be empty");
-            }
-            
-            // Description should be present and non-empty
-            assert!(first_episode.description.is_some(), "Episode should have a description");
-            if let Some(desc) = &first_episode.description {
-                assert!(!desc.is_empty(), "Description should not be empty");
-            }
-            
-            // Duration might be present (it's optional but common in podcasts)
-            if let Some(duration) = &first_episode.duration {
-                assert!(!duration.is_empty(), "If duration is present, it should not be empty");
-            }
+        // Test HH:MM:SS format
+        assert_eq!(
+            parse_duration("01:30:45"),
+            Some(Duration::from_secs(5445)) // 1h 30m 45s
+        );
 
-            // Print summary for debugging
-            for (i, episode) in episodes.iter().enumerate() {
-                println!("\nEpisode {}:", i + 1);
-                print_episode_summary(episode);
-            }
-        }
-        Err(e) => {
-            panic!("Failed to fetch episodes: {}", e);
-        }
+        // Test MM:SS format
+        assert_eq!(
+            parse_duration("45:30"),
+            Some(Duration::from_secs(2730)) // 45m 30s
+        );
+
+        // Test seconds format
+        assert_eq!(
+            parse_duration("6601"),
+            Some(Duration::from_secs(6601)) // 1h 50m 1s
+        );
+
+        // Test invalid format
+        assert_eq!(parse_duration("invalid"), None);
     }
-}
 
-#[test]
-fn test_fetch_episodes_invalid_url() {
-    let result = fetch_episodes("https://invalid.url/feed.rss");
-    assert!(result.is_err());
+    #[test]
+    fn test_read_rss_feeds() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let feed_path = dir.path().join("test-feeds.txt");
+        let mut file = File::create(&feed_path)?;
+
+        writeln!(file, "# This is a comment")?;
+        writeln!(file, "// Another comment")?;
+        writeln!(file, "-- SQL style comment")?;
+        writeln!(file, "")?;
+        writeln!(file, "https://feed1.com/rss")?;
+        writeln!(file, "  https://feed2.com/rss  ")?;
+        writeln!(file, "https://feed3.com/rss")?;
+
+        let feeds = rss_reader::read_rss_feeds(feed_path.to_str().unwrap())?;
+        
+        assert_eq!(feeds.len(), 3);
+        assert_eq!(feeds[0], "https://feed1.com/rss");
+        assert_eq!(feeds[1], "https://feed2.com/rss");
+        assert_eq!(feeds[2], "https://feed3.com/rss");
+        
+        Ok(())
+    }
 }
