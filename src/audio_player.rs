@@ -21,13 +21,12 @@ pub enum PlayerCommand {
 }
 
 pub struct AudioPlayer {
-    sink: Arc<Mutex<Option<Sink>>>,
     _stream: OutputStream,
     stream_handle: rodio::OutputStreamHandle,
+    sink: Arc<Mutex<Option<Sink>>>,
     current_file: Arc<Mutex<Option<PathBuf>>>,
     current_position: Arc<Mutex<Duration>>,
     duration: Arc<Mutex<Option<Duration>>>,
-    cached_audio_bytes: Arc<Mutex<Option<Vec<u8>>>>,
     is_playing: Arc<Mutex<bool>>,
 }
 
@@ -35,13 +34,12 @@ impl AudioPlayer {
     pub fn new() -> Result<Self> {
         let (_stream, stream_handle) = OutputStream::try_default()?;
         Ok(Self {
-            sink: Arc::new(Mutex::new(None)),
             _stream,
             stream_handle,
+            sink: Arc::new(Mutex::new(None)),
             current_file: Arc::new(Mutex::new(None)),
             current_position: Arc::new(Mutex::new(Duration::default())),
             duration: Arc::new(Mutex::new(None)),
-            cached_audio_bytes: Arc::new(Mutex::new(None)),
             is_playing: Arc::new(Mutex::new(false)),
         })
     }
@@ -49,8 +47,8 @@ impl AudioPlayer {
     pub fn play(&mut self, episode: &Episode) -> Result<()> {
         // Stop playback, clear previous cached audio, and validate the URL
         self.stop()?;
-        self.clear_cached_audio();
-        let audio_url = episode.audio_url.as_ref().ok_or_else(|| anyhow::anyhow!("Episode has no audio URL"))?;
+        
+        let audio_url = episode.audio_url.as_ref().ok_or_else(|| anyhow!("Episode has no audio URL"))?;
 
         // Download and decode audio
         let audio_bytes = reqwest::blocking::get(audio_url)?.bytes()?.to_vec();
@@ -59,7 +57,6 @@ impl AudioPlayer {
         // Setup playback and store state
         let sink = Sink::try_new(&self.stream_handle)?;
         *self.duration.lock().unwrap() = source.total_duration(); // Cache duration
-        *self.cached_audio_bytes.lock().unwrap() = Some(audio_bytes); // Cache audio bytes
         *self.current_file.lock().unwrap() = Some(PathBuf::from(audio_url));
         *self.current_position.lock().unwrap() = Duration::default();
 
@@ -70,43 +67,6 @@ impl AudioPlayer {
     }
 
     pub fn play_from_position(&mut self, position: Duration) -> Result<()> {
-        // Ensure position is within total duration
-        let total_duration = self.duration()
-            .ok_or_else(|| anyhow!("Failed to get duration"))?;
-        let adjusted_position = position.min(total_duration);
-
-        // Reuse cached audio for seeking
-        let audio_bytes = {
-            let cached = self.cached_audio_bytes.lock().unwrap();
-            cached
-                .as_ref()
-                .ok_or_else(|| anyhow!("No cached audio bytes found for seeking"))?
-                .clone()
-        };
-    
-        // Create a new decoder for the cached audio stream
-        let mut decoder = Decoder::new(BufReader::new(Cursor::new(audio_bytes)))?;
-        
-        // Attempt to seek to the required position
-        if decoder.try_seek(adjusted_position).is_err() {
-            return Err(anyhow!(
-                "Seeking failed. The audio format may not support seeking."
-            ));
-        }
-    
-        // Replace the Sink's current source
-        if let Some(sink) = self.sink.lock().unwrap().as_mut() {
-            sink.stop();           // Stop the sink
-            sink.append(decoder);  // Append the new seeked source
-            sink.play();           // Resume playback
-        }
-    
-        // Update current position
-        *self.current_position.lock().unwrap() = adjusted_position;
-        Ok(())
-    }
-
-    pub fn play_from_position_2(&mut self, position: Duration) -> Result<()> {
         // Ensure position is within total duration
         let total_duration = self.duration()
             .ok_or_else(|| anyhow!("Failed to get duration"))?;
@@ -194,9 +154,5 @@ impl AudioPlayer {
 
     pub fn duration(&self) -> Option<Duration> {
         *self.duration.lock().unwrap()
-    }
-
-    pub fn clear_cached_audio(&self) {
-        *self.cached_audio_bytes.lock().unwrap() = None;
     }
 }
