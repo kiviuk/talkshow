@@ -1,5 +1,3 @@
-use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
 use anyhow::{Context, Result};
 use rss::Channel;
 use std::time::Duration;

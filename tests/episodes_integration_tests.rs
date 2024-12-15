@@ -1,14 +1,14 @@
-use rss_reader::{read_rss_feeds, fetch_episodes, Episode};
+use rss_reader::episodes::{read_rss_feeds, fetch_episodes};
 use std::io::Write;
 use tempfile::NamedTempFile;
 
-fn print_episode_summary(episode: &Episode) {
-    println!("Title: {}", episode.title);
-    println!("Link: {}", episode.link.as_deref().unwrap_or("None"));
-    println!("Publication Date: {}", episode.pub_date.as_deref().unwrap_or("None"));
-    println!("Duration: {}", episode.duration.map(|d| format!("{:?}", d)).unwrap_or_else(|| "None".to_string()));
-    println!("Description: {}", episode.description.as_deref().unwrap_or("None"));
-}
+// fn print_episode_summary(episode: &Episode) {
+//     println!("Title: {}", episode.title);
+//     println!("Link: {}", episode.link.as_deref().unwrap_or("None"));
+//     println!("Publication Date: {}", episode.pub_date.as_deref().unwrap_or("None"));
+//     println!("Duration: {}", episode.duration.map(|d| format!("{:?}", d)).unwrap_or_else(|| "None".to_string()));
+//     println!("Description: {}", episode.description.as_deref().unwrap_or("None"));
+// }
 
 #[test]
 fn test_read_rss_feeds_happy_path() {

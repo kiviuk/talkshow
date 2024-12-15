@@ -31,7 +31,7 @@ impl AudioPlayer {
 
     pub fn play(&mut self, episode: &Episode) -> Result<()> {
         // Stop any existing playback
-        self.stop();
+        let _ = self.stop();
 
         // Open the audio file
         let audio_url = episode.audio_url
@@ -62,7 +62,7 @@ impl AudioPlayer {
 
     pub fn play_from_position(&mut self, position: Duration) -> Result<()> {
         // Stop any existing playback
-        self.stop();
+        let _ = self.stop();
 
         // Ensure position is within total duration
         let total_duration = self.duration.lock().unwrap().unwrap_or(Duration::from_secs(0));
