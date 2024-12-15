@@ -1,13 +1,11 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use crate::episodes::Episode;
 use rodio::{Decoder, OutputStream, Sink, Source};
-use rodio::source::SeekError;
-use std::io::BufReader;
+use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use reqwest;
-use std::io::Cursor;
 
 #[derive(Debug, PartialEq)]
 pub enum PlayerCommand {
@@ -41,7 +39,7 @@ impl AudioPlayer {
             _stream,
             stream_handle,
             current_file: Arc::new(Mutex::new(None)),
-            current_position: Arc::new(Mutex::new(Duration::from_secs(0))),
+            current_position: Arc::new(Mutex::new(Duration::default())),
             duration: Arc::new(Mutex::new(None)),
             cached_audio_bytes: Arc::new(Mutex::new(None)),
             is_playing: Arc::new(Mutex::new(false)),
@@ -49,100 +47,115 @@ impl AudioPlayer {
     }
 
     pub fn play(&mut self, episode: &Episode) -> Result<()> {
-        // Stop any existing playback
-        let _ = self.stop();
-
-        // Clear cached audio
+        // Stop playback, clear previous cached audio, and validate the URL
+        self.stop()?;
         self.clear_cached_audio();
+        let audio_url = episode.audio_url.as_ref().ok_or_else(|| anyhow::anyhow!("Episode has no audio URL"))?;
 
-        // Get the audio URL
-        let audio_url = episode.audio_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Episode has no audio URL"))?;
+        // Download and decode audio
+        let audio_bytes = reqwest::blocking::get(audio_url)?.bytes()?.to_vec();
+        let source = Decoder::new(BufReader::new(Cursor::new(audio_bytes.clone())))?;
 
-        // Download the audio file
-        let response = reqwest::blocking::get(audio_url)?;
-        let audio_bytes = response.bytes()?;
-
-        // Create cursor from audio bytes
-        let cursor = Cursor::new(audio_bytes.to_vec());
-        let file = BufReader::new(cursor);
-        
-        // Decode the audio
-        let source = Decoder::new(file)?;
-
-        // Set duration
-        let duration = source.total_duration();
-        *self.duration.lock().unwrap() = duration;
-
-        // Create a new sink
+        // Setup playback and store state
         let sink = Sink::try_new(&self.stream_handle)?;
-
-        // Reset position
-        *self.current_position.lock().unwrap() = Duration::from_secs(0);
-
-        // Append source to sink
-        sink.append(source);
-
-        // Store sink and file
-        *self.sink.lock().unwrap() = Some(sink);
+        *self.duration.lock().unwrap() = source.total_duration(); // Cache duration
+        *self.cached_audio_bytes.lock().unwrap() = Some(audio_bytes); // Cache audio bytes
         *self.current_file.lock().unwrap() = Some(PathBuf::from(audio_url));
+        *self.current_position.lock().unwrap() = Duration::default();
 
-        // Cache audio bytes
-        *self.cached_audio_bytes.lock().unwrap() = Some(audio_bytes.to_vec());
-
+        // Start playback
+        sink.append(source);
+        *self.sink.lock().unwrap() = Some(sink);
         Ok(())
     }
 
     pub fn play_from_position(&mut self, position: Duration) -> Result<()> {
         // Ensure position is within total duration
-        let total_duration = self.duration.lock().unwrap().unwrap_or(Duration::from_secs(0));
+        let total_duration = self.duration()
+            .ok_or_else(|| anyhow!("Failed to get duration"))?;
         let adjusted_position = position.min(total_duration);
 
-        // Check if we have an existing sink
+        // Reuse cached audio for seeking
+        let audio_bytes = {
+            let cached = self.cached_audio_bytes.lock().unwrap();
+            cached
+                .as_ref()
+                .ok_or_else(|| anyhow!("No cached audio bytes found for seeking"))?
+                .clone()
+        };
+    
+        // Create a new decoder for the cached audio stream
+        let mut decoder = Decoder::new(BufReader::new(Cursor::new(audio_bytes)))?;
+        
+        // Attempt to seek to the required position
+        if decoder.try_seek(adjusted_position).is_err() {
+            return Err(anyhow!(
+                "Seeking failed. The audio format may not support seeking."
+            ));
+        }
+    
+        // Replace the Sink's current source
         if let Some(sink) = self.sink.lock().unwrap().as_mut() {
-            // Attempt to seek to the desired position
-            if let Err(_) = sink.try_seek(adjusted_position) {
-                // If seeking is not supported or fails, do nothing
-                return Ok(());
+            sink.stop();           // Stop the sink
+            sink.append(decoder);  // Append the new seeked source
+            sink.play();           // Resume playback
+        }
+    
+        // Update current position
+        *self.current_position.lock().unwrap() = adjusted_position;
+        Ok(())
+    }
+
+    pub fn play_from_position_2(&mut self, position: Duration) -> Result<()> {
+        // Ensure position is within total duration
+        let total_duration = self.duration()
+            .ok_or_else(|| anyhow!("Failed to get duration"))?;
+        let adjusted_position = position.min(total_duration);
+
+        // Try to seek in the existing sink
+        if let Some(sink) = self.sink.lock().unwrap().as_mut() {
+            if sink.try_seek(adjusted_position).is_err() {
+                // If seeking fails, log a warning but continue
+                println!("Warning: Seeking not supported or failed");
             }
-            // Seeking was successful
-            *self.current_position.lock().unwrap() = adjusted_position;
         }
 
+        // Update current position
+        *self.current_position.lock().unwrap() = adjusted_position;
         Ok(())
     }
 
     pub fn skip(&mut self, seconds: i64) -> Result<()> {
-        // Get current position
         let current_pos = self.current_position();
-        
-        // Calculate new position
-        let new_pos = if seconds >= 0 {
-            // Forward skip
-            let total_duration = self.duration().unwrap_or(Duration::from_secs(0));
-            (current_pos + Duration::from_secs(seconds as u64)).min(total_duration)
-        } else {
-            // Backward skip
-            current_pos.checked_sub(Duration::from_secs((-seconds) as u64))
-                .unwrap_or(Duration::from_secs(0))
+        let total_duration = self.duration().map_or(Duration::from_secs(0), |d| d);
+        let new_pos = match seconds.is_positive() {
+            true => (current_pos + Duration::from_secs(seconds as u64)).min(total_duration),
+            false => current_pos.saturating_sub(Duration::from_secs(-seconds as u64)),
         };
-        
-        // Play from new position
+    
+        // Use play_from_position for seeking
         self.play_from_position(new_pos)?;
-        
-        // Print skip direction
-        if seconds > 0 {
-            println!("⏩ Skipped forward {} seconds", seconds);
-        } else if seconds < 0 {
-            println!("⏪ Skipped backward {} seconds", -seconds);
+    
+        // Print skip message
+        println!(
+            "{} {} seconds. New position: {:?}",
+            if seconds >= 0 { "⏩ Skipped forward" } else { "⏪ Skipped backward" },
+            seconds.abs(),
+            new_pos
+        );
+        Ok(())
+    }    
+
+    pub fn resume(&mut self) -> Result<()> {
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            sink.play();
         }
-        
         Ok(())
     }
 
     pub fn pause(&mut self) -> Result<()> {
-        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+        let sink = self.sink.lock().unwrap();
+        if let Some(sink) = sink.as_ref() {
             if sink.is_paused() {
                 sink.play();
                 println!("▶️ Resumed playback");
@@ -150,13 +163,6 @@ impl AudioPlayer {
                 sink.pause();
                 println!("⏸️ Paused playback");
             }
-        }
-        Ok(())
-    }
-
-    pub fn resume(&mut self) -> Result<()> {
-        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
-            sink.play();
         }
         Ok(())
     }
@@ -171,19 +177,17 @@ impl AudioPlayer {
 
     pub fn adjust_volume(&mut self, step: f32) -> Result<()> {
         if let Some(sink) = self.sink.lock().unwrap().as_mut() {
-            let current_volume = sink.volume();
-            let new_volume = (current_volume + step).max(0.0);
-            sink.set_volume(new_volume);
-            
-            if step > 0.0 {
-                println!("🔊 Volume increased to {:.1}", new_volume);
-            } else {
-                println!("🔉 Volume decreased to {:.1}", new_volume);
-            }
+            sink.set_volume((sink.volume() + step).max(0.0));
+            println!(
+                "🔊 Volume {} to {:.1}",
+                if step > 0.0 { "increased" } else { "decreased" },
+                sink.volume()
+            );
         }
         Ok(())
     }
 
+    // Helpers
     pub fn current_position(&self) -> Duration {
         *self.current_position.lock().unwrap()
     }
