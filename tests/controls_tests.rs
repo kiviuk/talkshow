@@ -1,11 +1,11 @@
-use rss_reader::keyboard_controls::{Controls, CooldownHandler};
+use rss_reader::keyboard_controls::{KeyboardControls, CooldownHandler};
 use rss_reader::PlayerCommand;
 use std::time::Duration;
 use std::thread;
 
 #[test]
 fn test_translate_basic_commands() {
-    let controls = Controls::new();
+    let controls = KeyboardControls::new();
     
     assert_eq!(controls.translate_command("p"), PlayerCommand::Pause);
     assert_eq!(controls.translate_command("q"), PlayerCommand::Quit);
@@ -13,7 +13,7 @@ fn test_translate_basic_commands() {
 
 #[test]
 fn test_translate_skip_commands() {
-    let controls = Controls::new();
+    let controls = KeyboardControls::new();
     
     assert_eq!(controls.translate_command("f"), PlayerCommand::SkipForward);
     assert_eq!(controls.translate_command("b"), PlayerCommand::SkipBackward);
@@ -21,7 +21,7 @@ fn test_translate_skip_commands() {
 
 #[test]
 fn test_translate_volume_commands() {
-    let controls = Controls::new();
+    let controls = KeyboardControls::new();
     
     assert_eq!(controls.translate_command("+"), PlayerCommand::VolumeUp(0.1));
     assert_eq!(controls.translate_command("-"), PlayerCommand::VolumeDown(0.1));
@@ -29,7 +29,7 @@ fn test_translate_volume_commands() {
 
 #[test]
 fn test_translate_unknown_commands() {
-    let controls = Controls::new();
+    let controls = KeyboardControls::new();
     
     assert_eq!(controls.translate_command("x"), PlayerCommand::Ignore);
     assert_eq!(controls.translate_command(""), PlayerCommand::Ignore);

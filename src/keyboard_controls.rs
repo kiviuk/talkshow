@@ -26,12 +26,12 @@ impl CooldownHandler {
 }
 
 #[derive(Clone)]
-pub struct Controls {
+pub struct KeyboardControls {
     skip_seconds: i64,
     volume_step: f32,
 }
 
-impl Controls {
+impl KeyboardControls {
     pub fn new() -> Self {
         Self {
             skip_seconds: 10,
@@ -59,7 +59,7 @@ impl Controls {
         }
     }
 
-    pub fn get_user_input(&mut self, cooldown_handler: &mut CooldownHandler) -> io::Result<PlayerCommand> {
+    pub fn get_user_input(&self, cooldown_handler: &mut CooldownHandler) -> io::Result<PlayerCommand> {
         let stdin = io::stdin();
         let mut input = String::new();
     

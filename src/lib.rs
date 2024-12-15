@@ -6,4 +6,4 @@ pub mod episodes;
 pub use episodes::{read_rss_feeds, fetch_episodes, Episode};
 pub use audio_player::{AudioPlayer, PlayerCommand};
 pub use audio_control::AudioControl;
-pub use keyboard_controls::Controls;
+pub use keyboard_controls::KeyboardControls;
