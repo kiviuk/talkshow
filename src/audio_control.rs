@@ -1,6 +1,6 @@
 use anyhow::Result;
-use crate::audio_player::AudioPlayer;
-use crate::controls::{Controls, PlayerCommand};
+use crate::audio_player::{AudioPlayer, PlayerCommand};
+use crate::keyboard_controls::Controls;
 use crate::episodes::Episode;
 
 pub struct AudioControl {
@@ -34,15 +34,17 @@ impl AudioControl {
     }
 
     pub fn run(&mut self) -> Result<()> {
+        let mut current_controls = self.controls.clone();
         loop {
-            match self.controls.process_input()? {
-                Some(command) => {
+            match current_controls.get_user_input()? {
+                Some((command, updated_controls)) => {
+                    current_controls = updated_controls;
                     match command {
                         PlayerCommand::Quit => break,
                         _ => self.process_command(command)?,
                     }
                 }
-                None => (), // Command was ignored due to cooldown
+                None => break,
             }
         }
         Ok(())
@@ -50,7 +52,7 @@ impl AudioControl {
 
     pub fn process_command(&mut self, command: PlayerCommand) -> Result<()> {
         match command {
-            PlayerCommand::Play => self.player.pause()?,
+            PlayerCommand::Play => self.player.resume()?,
             PlayerCommand::Pause => self.player.pause()?,
             PlayerCommand::Stop => self.player.stop()?,
             PlayerCommand::SkipForward => {
@@ -59,12 +61,12 @@ impl AudioControl {
             }
             PlayerCommand::SkipBackward => {
                 let skip_seconds = self.controls.skip_seconds();
-                self.player.skip(-(skip_seconds as i64))?;
+                self.player.skip(-skip_seconds as i64)?;
             }
             PlayerCommand::VolumeUp(step) => self.player.volume_up(step)?,
             PlayerCommand::VolumeDown(step) => self.player.volume_down(step)?,
             PlayerCommand::Quit => return Ok(()),
-            PlayerCommand::Unknown => (),
+            PlayerCommand::Ignore => (),
         }
         Ok(())
     }

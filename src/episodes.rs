@@ -35,6 +35,43 @@ impl Episode {
             description: item.description().map(|s| s.to_string()),
         })
     }
+
+    pub fn pretty_print(episode: &Episode) -> String {
+        let mut details = Vec::new();
+        
+        details.push(format!("🎙️  Title: {}", episode.title));
+        
+        if let Some(link) = &episode.link {
+            details.push(format!("🔗  Link: {}", link));
+        }
+        
+        if let Some(pub_date) = &episode.pub_date {
+            details.push(format!("📅  Published: {}", pub_date));
+        }
+        
+        if let Some(duration) = episode.duration {
+            let hours = duration.as_secs() / 3600;
+            let minutes = (duration.as_secs() % 3600) / 60;
+            let seconds = duration.as_secs() % 60;
+            details.push(format!("⏱️  Duration: {:02}:{:02}:{:02}", hours, minutes, seconds));
+        }
+        
+        if let Some(audio_url) = &episode.audio_url {
+            details.push(format!("🎧  Audio URL: {}", audio_url));
+        }
+        
+        if let Some(description) = &episode.description {
+            // Truncate description if it's too long
+            let truncated_desc = if description.len() > 200 {
+                format!("{}...", &description[..200])
+            } else {
+                description.to_string()
+            };
+            details.push(format!("📝  Description: {}", truncated_desc));
+        }
+        
+        details.join("\n")
+    }
 }
 
 pub fn read_rss_feeds(filename: &str) -> Result<Vec<String>> {

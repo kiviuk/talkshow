@@ -1,21 +1,10 @@
 use std::io::{self, BufRead};
 use std::time::{Duration, Instant};
+use crate::audio_player::PlayerCommand;
 
 const COOLDOWN: Duration = Duration::from_millis(50);
 
-#[derive(Debug, PartialEq)]
-pub enum PlayerCommand {
-    Play,
-    Pause,
-    Stop,
-    SkipForward,
-    SkipBackward,
-    VolumeUp(f32),
-    VolumeDown(f32),
-    Quit,
-    Unknown,
-}
-
+#[derive(Clone)]
 pub struct Controls {
     skip_seconds: i64,
     volume_step: f32,
@@ -47,49 +36,51 @@ impl Controls {
             "-" => PlayerCommand::VolumeDown(self.volume_step),
             "f" => PlayerCommand::SkipForward,
             "b" => PlayerCommand::SkipBackward,
-            _ => PlayerCommand::Unknown,
+            _ => PlayerCommand::Ignore,
         }
     }
 
-    pub fn process_input(&mut self) -> io::Result<Option<PlayerCommand>> {
+    pub fn get_user_input(&self) -> io::Result<Option<(PlayerCommand, Controls)>> {
         let stdin = io::stdin();
         let mut buffer = String::new();
         
-        // Read a line from stdin
-        if stdin.lock().read_line(&mut buffer)? == 0 {
-            return Ok(None);
-        }
+        stdin.lock().read_line(&mut buffer)?;
 
-        let command = self.translate_command(buffer.trim());
-        if command == PlayerCommand::Unknown {
+        if buffer.trim().is_empty() {
             return Ok(None);
         }
 
         let now = Instant::now();
-        if now.duration_since(self.last_command_time) >= COOLDOWN {
-            self.last_command_time = now;
-            Ok(Some(command))
-        } else {
-            Ok(None)
+        if now.duration_since(self.last_command_time) < COOLDOWN {
+            return Ok(None);
         }
+
+        let command = self.translate_command(&buffer);
+        
+        // Create a new Controls instance with updated last_command_time
+        let updated_controls = Self {
+            skip_seconds: self.skip_seconds,
+            volume_step: self.volume_step,
+            last_command_time: now,
+        };
+
+        Ok(Some((command, updated_controls)))
     }
 
     pub fn print_help(&self) {
-        println!("\nPlayback Controls:");
-        println!("  p: Play/Pause");
-        println!("  q: Stop and quit");
-        println!("  +: Volume up by {:.1}", self.volume_step);
-        println!("  -: Volume down by {:.1}", self.volume_step);
-        println!("  f: Skip forward {} seconds", self.skip_seconds);
-        println!("  b: Skip backward {} seconds", self.skip_seconds);
-        println!("\nPress Enter after each command");
+        println!("Available commands:");
+        println!("p - Pause");
+        println!("q - Quit");
+        println!("+ - Volume Up");
+        println!("- - Volume Down");
+        println!("f - Skip Forward");
+        println!("b - Skip Backward");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
 
     fn setup_controls() -> Controls {
         Controls::new()
@@ -120,7 +111,7 @@ mod tests {
         assert!(result.is_none());
 
         // After cooldown, command should work again
-        thread::sleep(COOLDOWN + Duration::from_millis(10));
+        std::thread::sleep(COOLDOWN + Duration::from_millis(10));
         let now = Instant::now();
         let result = if now.duration_since(controls.last_command_time) >= COOLDOWN {
             Some(controls.translate_command("f"))
@@ -158,8 +149,8 @@ mod tests {
     fn test_translate_unknown_commands() {
         let controls = setup_controls();
         
-        assert_eq!(controls.translate_command(""), PlayerCommand::Unknown);
-        assert_eq!(controls.translate_command("x"), PlayerCommand::Unknown);
-        assert_eq!(controls.translate_command("random"), PlayerCommand::Unknown);
+        assert_eq!(controls.translate_command(""), PlayerCommand::Ignore);
+        assert_eq!(controls.translate_command("x"), PlayerCommand::Ignore);
+        assert_eq!(controls.translate_command("random"), PlayerCommand::Ignore);
     }
 }

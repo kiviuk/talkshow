@@ -21,9 +21,15 @@ fn main() -> Result<()> {
     
     let episode_num: usize = input.trim().parse()?;
     if episode_num > 0 && episode_num <= episodes.len() {
-        let episode = &episodes[episode_num - 1];
+        let selected_episode = &episodes[episode_num - 1];
+        
+        // Display episode details
+        println!("\n--- Episode Details ---");
+        println!("{}", rss_reader::Episode::pretty_print(selected_episode));
+        
+        // Play the episode
         let mut audio_control = AudioControl::new()?;
-        audio_control.play_episode(episode)?;
+        audio_control.play_episode(selected_episode)?;
     }
     
     Ok(())
