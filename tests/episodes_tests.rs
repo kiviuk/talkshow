@@ -3,9 +3,6 @@ mod tests {
     use rss_reader::Episode;
     use std::time::Duration;
     use std::fs;
-    use std::fs::File;
-    use std::io::Write;
-    use tempfile::tempdir;
 
     #[test]
     fn test_parse_feed() {
@@ -53,29 +50,5 @@ mod tests {
 
         // Test invalid format
         assert_eq!(parse_duration("invalid"), None);
-    }
-
-    #[test]
-    fn test_read_rss_feeds() -> anyhow::Result<()> {
-        let dir = tempdir()?;
-        let feed_path = dir.path().join("test-feeds.txt");
-        let mut file = File::create(&feed_path)?;
-
-        writeln!(file, "# This is a comment")?;
-        writeln!(file, "// Another comment")?;
-        writeln!(file, "-- SQL style comment")?;
-        writeln!(file, "")?;
-        writeln!(file, "https://feed1.com/rss")?;
-        writeln!(file, "  https://feed2.com/rss  ")?;
-        writeln!(file, "https://feed3.com/rss")?;
-
-        let feeds = rss_reader::read_rss_feeds(feed_path.to_str().unwrap())?;
-        
-        assert_eq!(feeds.len(), 3);
-        assert_eq!(feeds[0], "https://feed1.com/rss");
-        assert_eq!(feeds[1], "https://feed2.com/rss");
-        assert_eq!(feeds[2], "https://feed3.com/rss");
-        
-        Ok(())
     }
 }

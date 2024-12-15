@@ -12,13 +12,28 @@ use tempfile::NamedTempFile;
 
 #[test]
 fn test_read_rss_feeds_happy_path() {
-    let mut temp_file = NamedTempFile::new().unwrap();
-    writeln!(temp_file, "https://example.com/feed1.rss").unwrap();
-    writeln!(temp_file, "https://example.com/feed2.rss").unwrap();
+    // Create a temporary file
+    let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
     
-    let feeds = read_rss_feeds(temp_file.path().to_str().unwrap()).unwrap();
+    // Write some test data to the file
+    writeln!(temp_file, "https://example.com/feed1.rss").expect("Failed to write to temp file");
+    writeln!(temp_file, "# This is a comment").expect("Failed to write comment");
+    writeln!(temp_file, "https://example.com/feed2.rss").expect("Failed to write to temp file");
+    writeln!(temp_file, "  // Another comment").expect("Failed to write comment");
     
-    assert_eq!(feeds.len(), 2);
+    // Flush and sync the file to ensure all data is written
+    temp_file.flush().expect("Failed to flush temp file");
+    temp_file.as_file().sync_all().expect("Failed to sync temp file");
+    
+    // Get the path of the temporary file
+    let file_path = temp_file.path();
+    
+    // Read RSS feeds from the temporary file
+    let feeds = read_rss_feeds(file_path.to_str().expect("Failed to convert path to string"))
+        .expect("Failed to read RSS feeds");
+    
+    // Assert that comments are filtered out
+    assert_eq!(feeds.len(), 2, "Should have 2 non-comment feed URLs");
     assert_eq!(feeds[0], "https://example.com/feed1.rss");
     assert_eq!(feeds[1], "https://example.com/feed2.rss");
 }
