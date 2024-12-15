@@ -54,7 +54,7 @@ impl AudioPlayer {
 
         // Setup playback and store state
         let sink = Sink::try_new(&self.stream_handle)?;
-        *self.duration.lock().unwrap() = source.total_duration(); // Cache duration
+        *self.duration.lock().unwrap() = source.total_duration();
         *self.current_file.lock().unwrap() = Some(PathBuf::from(audio_url));
         *self.current_position.lock().unwrap() = Duration::default();
 
