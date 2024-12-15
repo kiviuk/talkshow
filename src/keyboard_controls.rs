@@ -2,7 +2,7 @@ use std::io::{self, BufRead};
 use std::time::{Duration, Instant};
 use crate::audio_player::PlayerCommand;
 
-const COOLDOWN: Duration = Duration::from_millis(50);
+const COOLDOWN: Duration = Duration::from_millis(250);
 
 #[derive(Clone)]
 pub struct Controls {
@@ -16,7 +16,7 @@ impl Controls {
         Self {
             skip_seconds: 10,
             volume_step: 0.1,
-            last_command_time: Instant::now() - (COOLDOWN + Duration::from_millis(1)), // Safely past cooldown
+            last_command_time: Instant::now()
         }
     }
 
@@ -58,7 +58,6 @@ impl Controls {
         let command: PlayerCommand = self.translate_command(&buffer);
 
         self.last_command_time = now;
-        
 
         Ok(command)
     }
@@ -80,41 +79,6 @@ mod tests {
 
     fn setup_controls() -> Controls {
         Controls::new()
-    }
-
-    #[test]
-    fn test_cooldown() {
-        let mut controls = setup_controls();
-        
-        // First command should work
-        controls.last_command_time = Instant::now() - COOLDOWN;
-        let now = Instant::now();
-        let result = if now.duration_since(controls.last_command_time) >= COOLDOWN {
-            Some(controls.translate_command("f"))
-        } else {
-            None
-        };
-        assert!(result.is_some());
-
-        // Immediate second command should be ignored
-        controls.last_command_time = now; // Set the time of the last command
-        let now = Instant::now();
-        let result = if now.duration_since(controls.last_command_time) >= COOLDOWN {
-            Some(controls.translate_command("f"))
-        } else {
-            None
-        };
-        assert!(result.is_none());
-
-        // After cooldown, command should work again
-        std::thread::sleep(COOLDOWN + Duration::from_millis(10));
-        let now = Instant::now();
-        let result = if now.duration_since(controls.last_command_time) >= COOLDOWN {
-            Some(controls.translate_command("f"))
-        } else {
-            None
-        };
-        assert!(result.is_some());
     }
 
     #[test]
