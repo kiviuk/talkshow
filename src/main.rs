@@ -4,8 +4,20 @@ use rss_reader::{read_rss_feeds, fetch_episodes, AudioControl};
 mod tui;
 
 fn main() -> Result<()> {
+    // Example lists for TUI
+    let left_items = vec![
+        "Podcast 1".to_string(), 
+        "Podcast 2".to_string(), 
+        "Podcast 3".to_string()
+    ];
+    let right_items = vec![
+        "Episode A".to_string(), 
+        "Episode B".to_string(), 
+        "Episode C".to_string()
+    ];
+
     // Option to launch TUI
-    let mut tui = tui::Tui::new()?;
+    let mut tui = tui::Tui::new(left_items, right_items)?;
     tui.run()?;
 
     let feed_url = read_rss_feeds("rss-db.txt")?

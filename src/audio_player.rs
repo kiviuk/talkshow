@@ -27,7 +27,6 @@ pub struct AudioPlayer {
     current_file: Arc<Mutex<Option<PathBuf>>>,
     current_position: Arc<Mutex<Duration>>,
     duration: Arc<Mutex<Option<Duration>>>,
-    is_playing: Arc<Mutex<bool>>,
 }
 
 impl AudioPlayer {
@@ -40,7 +39,6 @@ impl AudioPlayer {
             current_file: Arc::new(Mutex::new(None)),
             current_position: Arc::new(Mutex::new(Duration::default())),
             duration: Arc::new(Mutex::new(None)),
-            is_playing: Arc::new(Mutex::new(false)),
         })
     }
 
@@ -130,7 +128,6 @@ impl AudioPlayer {
     pub fn stop(&mut self) -> Result<()> {
         if let Some(sink) = self.sink.lock().unwrap().take() {
             sink.stop();
-            println!("⏹️ Stopped playback");
         }
         Ok(())
     }
