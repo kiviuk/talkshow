@@ -4,6 +4,27 @@ use crate::audio_player::PlayerCommand;
 
 const COOLDOWN: Duration = Duration::from_millis(250);
 
+pub struct CooldownHandler {
+    last_command_time: Instant,
+}
+
+impl CooldownHandler {
+    pub fn new() -> Self {
+        Self {
+            last_command_time: Instant::now(),
+        }
+    }
+
+    pub fn update_command_time(&mut self) {
+        self.last_command_time = Instant::now();
+    }
+
+    pub fn is_cooldown_elapsed(&self, cooldown: Duration) -> bool {
+        let now = Instant::now();
+        now.duration_since(self.last_command_time) >= cooldown
+    }
+}
+
 #[derive(Clone)]
 pub struct Controls {
     skip_seconds: i64,
@@ -60,6 +81,28 @@ impl Controls {
         self.last_command_time = now;
 
         Ok(command)
+    }
+
+    pub fn get_user_input_2(&mut self, cooldown_handler: &mut CooldownHandler) -> io::Result<PlayerCommand> {
+        let stdin = io::stdin();
+        let mut input = String::new();
+
+        stdin.lock().read_line(&mut input)?;
+
+        let command: PlayerCommand = self.translate_command(&input);
+
+        // Only update command time if a valid command is issued
+        match command {
+            PlayerCommand::Ignore => Ok(command),
+            _ => {
+                if cooldown_handler.is_cooldown_elapsed(COOLDOWN) {
+                    cooldown_handler.update_command_time();
+                    Ok(command)
+                } else {
+                    Ok(PlayerCommand::Ignore)
+                }
+            }
+        }
     }
 
     pub fn print_help(&self) {
