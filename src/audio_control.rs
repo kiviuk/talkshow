@@ -63,8 +63,8 @@ impl AudioControl {
                 let skip_seconds = self.controls.skip_seconds();
                 self.player.skip(-skip_seconds as i64)?;
             }
-            PlayerCommand::VolumeUp(step) => self.player.volume_up(step)?,
-            PlayerCommand::VolumeDown(step) => self.player.volume_down(step)?,
+            PlayerCommand::VolumeUp(step) => self.player.adjust_volume(step)?,
+            PlayerCommand::VolumeDown(step) => self.player.adjust_volume(-step)?,
             PlayerCommand::Quit => return Ok(()),
             PlayerCommand::Ignore => (),
         }

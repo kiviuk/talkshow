@@ -169,21 +169,17 @@ impl AudioPlayer {
         Ok(())
     }
 
-    pub fn volume_up(&mut self, step: f32) -> Result<()> {
+    pub fn adjust_volume(&mut self, step: f32) -> Result<()> {
         if let Some(sink) = self.sink.lock().unwrap().as_mut() {
             let current_volume = sink.volume();
-            sink.set_volume(current_volume + step);
-            println!("🔊 Volume increased to {:.1}", sink.volume());
-        }
-        Ok(())
-    }
-
-    pub fn volume_down(&mut self, step: f32) -> Result<()> {
-        if let Some(sink) = self.sink.lock().unwrap().as_mut() {
-            let current_volume = sink.volume();
-            let new_volume = (current_volume - step).max(0.0);
+            let new_volume = (current_volume + step).max(0.0);
             sink.set_volume(new_volume);
-            println!("🔉 Volume decreased to {:.1}", new_volume);
+            
+            if step > 0.0 {
+                println!("🔊 Volume increased to {:.1}", new_volume);
+            } else {
+                println!("🔉 Volume decreased to {:.1}", new_volume);
+            }
         }
         Ok(())
     }
