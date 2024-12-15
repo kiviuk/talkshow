@@ -1,6 +1,6 @@
 use anyhow::Result;
 use crate::audio_player::{AudioPlayer, PlayerCommand};
-use crate::keyboard_controls::Controls;
+use crate::keyboard_controls::{Controls, CooldownHandler};
 use crate::episodes::Episode;
 
 pub struct AudioControl {
@@ -35,8 +35,9 @@ impl AudioControl {
 
     pub fn run(&mut self) -> Result<()> {
         let mut current_controls: Controls = self.controls.clone();
+        let mut cooldown_handler = CooldownHandler::new();
         loop {
-            let command: PlayerCommand = current_controls.get_user_input()?;
+            let command: PlayerCommand = current_controls.get_user_input(&mut cooldown_handler)?;
             match command {
                 PlayerCommand::Quit => break,
                 PlayerCommand::Ignore => continue,

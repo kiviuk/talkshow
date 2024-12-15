@@ -29,7 +29,6 @@ impl CooldownHandler {
 pub struct Controls {
     skip_seconds: i64,
     volume_step: f32,
-    last_command_time: Instant,
 }
 
 impl Controls {
@@ -37,7 +36,6 @@ impl Controls {
         Self {
             skip_seconds: 10,
             volume_step: 0.1,
-            last_command_time: Instant::now()
         }
     }
 
@@ -49,7 +47,7 @@ impl Controls {
         self.volume_step
     }
 
-    fn translate_command(&self, input: &str) -> PlayerCommand {
+    pub fn translate_command(&self, input: &str) -> PlayerCommand {
         match input.trim() {
             "p" => PlayerCommand::Pause,
             "q" => PlayerCommand::Quit,
@@ -61,48 +59,29 @@ impl Controls {
         }
     }
 
-    pub fn get_user_input(&mut self) -> io::Result<PlayerCommand> {
-        let stdin = io::stdin();
-        let mut buffer = String::new();
-        
-        stdin.lock().read_line(&mut buffer)?;
-
-        if buffer.trim().is_empty() {
-            return Ok(PlayerCommand::Ignore);
-        }
-
-        let now = Instant::now();
-        if now.duration_since(self.last_command_time) < COOLDOWN {
-            return Ok(PlayerCommand::Ignore);
-        }
-
-        let command: PlayerCommand = self.translate_command(&buffer);
-
-        self.last_command_time = now;
-
-        Ok(command)
-    }
-
-    pub fn get_user_input_2(&mut self, cooldown_handler: &mut CooldownHandler) -> io::Result<PlayerCommand> {
+    pub fn get_user_input(&mut self, cooldown_handler: &mut CooldownHandler) -> io::Result<PlayerCommand> {
         let stdin = io::stdin();
         let mut input = String::new();
-
+    
+        // Read user input
         stdin.lock().read_line(&mut input)?;
-
-        let command: PlayerCommand = self.translate_command(&input);
-
-        // Only update command time if a valid command is issued
-        match command {
-            PlayerCommand::Ignore => Ok(command),
-            _ => {
-                if cooldown_handler.is_cooldown_elapsed(COOLDOWN) {
-                    cooldown_handler.update_command_time();
-                    Ok(command)
-                } else {
-                    Ok(PlayerCommand::Ignore)
-                }
-            }
+    
+        // Ignore empty input
+        if input.trim().is_empty() {
+            return Ok(PlayerCommand::Ignore);
         }
+    
+        // Translate input into a command
+        let command = self.translate_command(&input);
+    
+        // Handle valid commands with cooldown logic
+        if matches!(command, PlayerCommand::Ignore) || !cooldown_handler.is_cooldown_elapsed(COOLDOWN) {
+            return Ok(PlayerCommand::Ignore);
+        }
+    
+        // Update last command time for valid commands
+        cooldown_handler.update_command_time();
+        Ok(command)
     }
 
     pub fn print_help(&self) {
@@ -113,47 +92,5 @@ impl Controls {
         println!("- - Volume Down");
         println!("f - Skip Forward");
         println!("b - Skip Backward");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn setup_controls() -> Controls {
-        Controls::new()
-    }
-
-    #[test]
-    fn test_translate_basic_commands() {
-        let controls = setup_controls();
-        
-        assert_eq!(controls.translate_command("p"), PlayerCommand::Pause);
-        assert_eq!(controls.translate_command("q"), PlayerCommand::Quit);
-    }
-
-    #[test]
-    fn test_translate_skip_commands() {
-        let controls = setup_controls();
-        
-        assert_eq!(controls.translate_command("f"), PlayerCommand::SkipForward);
-        assert_eq!(controls.translate_command("b"), PlayerCommand::SkipBackward);
-    }
-
-    #[test]
-    fn test_translate_volume_commands() {
-        let controls = setup_controls();
-        
-        assert_eq!(controls.translate_command("+"), PlayerCommand::VolumeUp(0.1));
-        assert_eq!(controls.translate_command("-"), PlayerCommand::VolumeDown(0.1));
-    }
-
-    #[test]
-    fn test_translate_unknown_commands() {
-        let controls = setup_controls();
-        
-        assert_eq!(controls.translate_command(""), PlayerCommand::Ignore);
-        assert_eq!(controls.translate_command("x"), PlayerCommand::Ignore);
-        assert_eq!(controls.translate_command("random"), PlayerCommand::Ignore);
     }
 }
