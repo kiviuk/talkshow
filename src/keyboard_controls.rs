@@ -40,31 +40,27 @@ impl Controls {
         }
     }
 
-    pub fn get_user_input(&self) -> io::Result<Option<(PlayerCommand, Controls)>> {
+    pub fn get_user_input(&mut self) -> io::Result<PlayerCommand> {
         let stdin = io::stdin();
         let mut buffer = String::new();
         
         stdin.lock().read_line(&mut buffer)?;
 
         if buffer.trim().is_empty() {
-            return Ok(None);
+            return Ok(PlayerCommand::Ignore);
         }
 
         let now = Instant::now();
         if now.duration_since(self.last_command_time) < COOLDOWN {
-            return Ok(None);
+            return Ok(PlayerCommand::Ignore);
         }
 
-        let command = self.translate_command(&buffer);
-        
-        // Create a new Controls instance with updated last_command_time
-        let updated_controls = Self {
-            skip_seconds: self.skip_seconds,
-            volume_step: self.volume_step,
-            last_command_time: now,
-        };
+        let command: PlayerCommand = self.translate_command(&buffer);
 
-        Ok(Some((command, updated_controls)))
+        self.last_command_time = now;
+        
+
+        Ok(command)
     }
 
     pub fn print_help(&self) {

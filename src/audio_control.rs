@@ -34,17 +34,13 @@ impl AudioControl {
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let mut current_controls = self.controls.clone();
+        let mut current_controls: Controls = self.controls.clone();
         loop {
-            match current_controls.get_user_input()? {
-                Some((command, updated_controls)) => {
-                    current_controls = updated_controls;
-                    match command {
-                        PlayerCommand::Quit => break,
-                        _ => self.process_command(command)?,
-                    }
-                }
-                None => break,
+            let command: PlayerCommand = current_controls.get_user_input()?;
+            match command {
+                PlayerCommand::Quit => break,
+                PlayerCommand::Ignore => continue,
+                _ => self.process_command(command)?,
             }
         }
         Ok(())
