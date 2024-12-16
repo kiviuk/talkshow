@@ -4,7 +4,7 @@ use rss_reader::{
     fetch_episodes, 
     read_rss_feeds, 
     play_episode,
-    episodes::Episode
+    pretty_print
 };
 
 mod tui;
@@ -51,7 +51,7 @@ fn main() -> Result<()> {
         
         // Display episode details
         println!("\n--- Episode Details ---");
-        println!("{}", Episode::pretty_print(selected_episode));
+        println!("{}", pretty_print(selected_episode));
         
         // Play the episode
         play_episode(&mut audio_player, selected_episode)?;
