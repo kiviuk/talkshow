@@ -4,7 +4,7 @@ use rss_reader::{
     fetch_episodes, 
     read_rss_feeds, 
     play_episode,
-    pretty_print
+    episodes::pretty_print
 };
 
 mod tui;

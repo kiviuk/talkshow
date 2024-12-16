@@ -2,6 +2,7 @@ use anyhow::Result;
 use crate::audio_player::{AudioPlayerTrait, PlayerCommand};
 use crate::keyboard_controls::{KeyboardControls, CooldownHandler};
 use crate::episodes::Episode;
+use std::io;
 
 pub fn play_episode<T: AudioPlayerTrait>(
     player: &mut T,
@@ -14,8 +15,11 @@ pub fn play_episode<T: AudioPlayerTrait>(
 
 pub fn run<T: AudioPlayerTrait>(player: &mut T) -> Result<()> {
     let mut cooldown_handler = CooldownHandler::new();
+
+    let stdin = io::stdin();
+    let mut stdin_locked = stdin.lock();
     loop {
-        let command: PlayerCommand = KeyboardControls::get_user_input(&mut cooldown_handler);
+        let command: PlayerCommand = KeyboardControls::get_user_input(&mut cooldown_handler, &mut stdin_locked);
         match command {
             PlayerCommand::Quit => break,
             PlayerCommand::Ignore => continue,

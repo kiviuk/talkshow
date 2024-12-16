@@ -1,4 +1,4 @@
-use std::io::{self, BufRead};
+use std::io::BufRead;
 use std::time::{Duration, Instant};
 use crate::audio_player::PlayerCommand;
 
@@ -49,13 +49,14 @@ impl KeyboardControls {
         self.skip_seconds
     }
 
-    pub fn get_user_input<T: Cooldown>(
-        cooldown_handler: &mut T
+    pub fn get_user_input<T: Cooldown, R: BufRead>(
+        cooldown_handler: &mut T,
+        reader: &mut R,
     ) -> PlayerCommand {
         let mut input = String::new();
         
         // Read user input, return Ignore if it fails
-        if io::stdin().lock().read_line(&mut input).is_err() {
+        if reader.read_line(&mut input).is_err() {
             return PlayerCommand::Ignore;
         }
 

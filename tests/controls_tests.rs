@@ -4,8 +4,10 @@ use rss_reader::{
     PlayerCommand, 
     keyboard_controls::{KeyboardControls, Cooldown, CooldownHandler}
 };
+use std::io::Cursor;
 
 // Mock Cooldown for testing
+#[derive(Default)]
 struct MockCooldown {
     is_elapsed: bool,
 }
@@ -15,6 +17,22 @@ impl Cooldown for MockCooldown {
 
     fn is_cooldown_elapsed(&self, _cooldown: Duration) -> bool {
         self.is_elapsed
+    }
+}
+
+pub struct TestInputReader {
+    reader: Cursor<String>,
+}
+
+impl TestInputReader {
+    pub fn new(input: &str) -> Self {
+        Self {
+            reader: Cursor::new(input.to_owned()),
+        }
+    }
+
+    pub fn get_reader(&mut self) -> &mut Cursor<String> {
+        &mut self.reader
     }
 }
 
@@ -63,35 +81,40 @@ fn test_cooldown_handler() {
     // Immediately after updating, cooldown should not be elapsed
     assert!(!cooldown_handler.is_cooldown_elapsed(COOLDOWN));
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_get_user_input_valid_command() {
-    let mut cooldown_handler = MockCooldown { is_elapsed: true };
+    #[test]
+    fn test_get_user_input_valid_command() {
+        let mut cooldown_handler = MockCooldown { is_elapsed: true };
+        let mut input_reader = TestInputReader::new("p\n");
 
-    let result = KeyboardControls::get_user_input(&mut cooldown_handler);
+        let result = KeyboardControls::get_user_input(&mut cooldown_handler, input_reader.get_reader());
 
-    // Since this is a mock, we can't predict the exact command, 
-    // but we can check it's not an Ignore command when cooldown is elapsed
-    assert_ne!(result, PlayerCommand::Ignore);
-}
+        // but we can check it's not an Ignore command when cooldown is elapsed
+        assert_ne!(result, PlayerCommand::Pause);
+    }
 
-#[test]
-fn test_get_user_input_cooldown_elapsed() {
-    let mut cooldown_handler = MockCooldown { is_elapsed: true };
+    #[test]
+    fn test_get_user_input_cooldown_elapsed() {
+        let mut cooldown_handler = MockCooldown { is_elapsed: true };
+        let mut input_reader = TestInputReader::new("p\n");
+        let result = KeyboardControls::get_user_input(&mut cooldown_handler, input_reader.get_reader());
 
-    let result = KeyboardControls::get_user_input(&mut cooldown_handler);
+        // Since this is a mock, we can't predict the exact command, 
+        // but we can check it's not an Ignore command when cooldown is elapsed
+        assert_ne!(result, PlayerCommand::Ignore);
+    }
 
-    // Since this is a mock, we can't predict the exact command, 
-    // but we can check it's not an Ignore command when cooldown is elapsed
-    assert_ne!(result, PlayerCommand::Ignore);
-}
+    #[test]
+    fn test_get_user_input_cooldown_not_elapsed() {
+        let mut cooldown_handler = MockCooldown { is_elapsed: false };
+        let mut input_reader = TestInputReader::new("p\n");
 
-#[test]
-fn test_get_user_input_cooldown_not_elapsed() {
-    let mut cooldown_handler = MockCooldown { is_elapsed: false };
+        let result = KeyboardControls::get_user_input(&mut cooldown_handler, input_reader.get_reader());
 
-    let result = KeyboardControls::get_user_input(&mut cooldown_handler);
-
-    // When cooldown is not elapsed, we expect an Ignore command
-    assert_eq!(result, PlayerCommand::Ignore);
+        // When cooldown is not elapsed, we expect an Ignore command
+        assert_eq!(result, PlayerCommand::Ignore);
+    }
 }
