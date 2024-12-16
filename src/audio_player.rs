@@ -28,6 +28,40 @@ pub struct AudioPlayer {
     current_position: Arc<Mutex<Duration>>,
     duration: Arc<Mutex<Option<Duration>>>,
 }
+pub trait AudioPlayerTrait {
+    fn play(&mut self, episode: &Episode) -> Result<()>;
+    fn resume(&mut self) -> Result<()>;
+    fn pause(&mut self) -> Result<()>;
+    fn stop(&mut self) -> Result<()>;
+    fn skip(&mut self, seconds: i64) -> Result<()>;
+    fn adjust_volume(&mut self, step: f32) -> Result<()>;
+}
+
+impl AudioPlayerTrait for AudioPlayer {
+    fn play(&mut self, episode: &Episode) -> Result<()> {
+        AudioPlayer::play(self, episode)
+    }
+
+    fn resume(&mut self) -> Result<()> {
+        AudioPlayer::resume(self)
+    }
+
+    fn pause(&mut self) -> Result<()> {
+        AudioPlayer::pause(self)
+    }
+
+    fn stop(&mut self) -> Result<()> {
+        AudioPlayer::stop(self)
+    }
+
+    fn skip(&mut self, seconds: i64) -> Result<()> {
+        AudioPlayer::skip(self, seconds)
+    }
+
+    fn adjust_volume(&mut self, step: f32) -> Result<()> {
+        AudioPlayer::adjust_volume(self, step)
+    }
+}
 
 impl AudioPlayer {
     pub fn new() -> Result<Self> {

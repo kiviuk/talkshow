@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rss_reader::{read_rss_feeds, fetch_episodes, AudioControl};
+use rss_reader::{audio_player, fetch_episodes, read_rss_feeds, AudioControl};
 
 mod tui;
 
@@ -36,6 +36,8 @@ fn main() -> Result<()> {
     println!("\nSelect episode (1-{}):", episodes.len());
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
+
+    let mut audio_player = audio_player::AudioPlayer::new()?;
     
     let episode_num: usize = input.trim().parse()?;
     if episode_num > 0 && episode_num <= episodes.len() {
@@ -46,8 +48,8 @@ fn main() -> Result<()> {
         println!("{}", rss_reader::Episode::pretty_print(selected_episode));
         
         // Play the episode
-        let mut audio_control = AudioControl::new()?;
-        audio_control.play_episode(selected_episode)?;
+        let audio_control: AudioControl = AudioControl::new();
+        audio_control.play_episode(&mut audio_player, selected_episode)?;
     }
     
     Ok(())
