@@ -1,7 +1,22 @@
-use rss_reader::keyboard_controls::{KeyboardControls, CooldownHandler};
-use rss_reader::PlayerCommand;
 use std::time::Duration;
 use std::thread;
+use rss_reader::{
+    PlayerCommand, 
+    keyboard_controls::{KeyboardControls, Cooldown, CooldownHandler}
+};
+
+// Mock Cooldown for testing
+struct MockCooldown {
+    is_elapsed: bool,
+}
+
+impl Cooldown for MockCooldown {
+    fn update_command_time(&mut self) {}
+
+    fn is_cooldown_elapsed(&self, _cooldown: Duration) -> bool {
+        self.is_elapsed
+    }
+}
 
 #[test]
 fn test_translate_basic_commands() {
@@ -55,4 +70,32 @@ fn test_cooldown_handler() {
 
     // Immediately after updating, cooldown should not be elapsed
     assert!(!cooldown_handler.is_cooldown_elapsed(COOLDOWN));
+}
+
+#[test]
+fn test_get_user_input_valid_command() {
+    let controls = KeyboardControls::new();
+    let mut cooldown_handler = MockCooldown { is_elapsed: true };
+
+    let result = controls.get_user_input(&mut cooldown_handler);
+
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_get_user_input_cooldown_elapsed() {
+    let controls = KeyboardControls::new();
+    let mut cooldown_handler = MockCooldown { is_elapsed: true };
+
+    let result = controls.get_user_input(&mut cooldown_handler);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_get_user_input_cooldown_not_elapsed() {
+    let controls = KeyboardControls::new();
+    let mut cooldown_handler = MockCooldown { is_elapsed: false };
+
+    let result = controls.get_user_input(&mut cooldown_handler);
+    assert!(result.is_ok());
 }
