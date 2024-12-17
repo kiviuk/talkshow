@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn test_get_user_input_cooldown_not_elapsed() {
         let mut cooldown_handler = MockCooldown { is_cooldown_active: true };
-        let mut input_reader = TestInputReader::new("p\n");
+        let mut input_reader = TestInputReader::new("p\np\np\n");
         let result = KeyboardControls::get_user_input(&mut cooldown_handler, input_reader.get_reader());
 
         assert_eq!(result, PlayerCommand::Ignore);
