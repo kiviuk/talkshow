@@ -59,7 +59,7 @@ impl Tui {
                     Constraint::Percentage(50),
                     Constraint::Percentage(50),
                 ])
-                .split(frame.size());
+                .split(frame.area());
 
             // Convert left items to ListItems with colored text
             let left_list_items: Vec<ListItem> = self.left_items

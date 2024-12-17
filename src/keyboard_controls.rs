@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::BufRead;
 use std::time::{Duration, Instant};
 use crate::audio_player::PlayerCommand;
@@ -6,9 +7,22 @@ const COOLDOWN: Duration = Duration::from_millis(250);
 pub const VOLUME_STEP: f32 = 0.1;
 pub const SKIP_SECONDS: i64 = 10;
 
+lazy_static::lazy_static! {
+    static ref COMMAND_MAP: HashMap<&'static str, PlayerCommand> = {
+        let mut map = HashMap::new();
+        map.insert("p", PlayerCommand::Pause);
+        map.insert("q", PlayerCommand::Quit);
+        map.insert("+", PlayerCommand::VolumeUp(VOLUME_STEP));
+        map.insert("-", PlayerCommand::VolumeDown(VOLUME_STEP));
+        map.insert("f", PlayerCommand::SkipForward(SKIP_SECONDS));
+        map.insert("b", PlayerCommand::SkipBackward(SKIP_SECONDS));
+        map
+    };
+}
+
 pub trait Cooldown {
     fn update_command_time(&mut self);
-    fn is_cooldown_elapsed(&self, cooldown: Duration) -> bool;
+    fn is_cooldown_active(&self, cooldown: Duration) -> bool;
 }
 
 pub struct CooldownHandler {
@@ -20,8 +34,8 @@ impl Cooldown for CooldownHandler {
         self.last_command_time = Instant::now();
     }
 
-    fn is_cooldown_elapsed(&self, cooldown: Duration) -> bool {
-        Instant::now().duration_since(self.last_command_time) >= cooldown
+    fn is_cooldown_active(&self, cooldown: Duration) -> bool {
+        Instant::now() < self.last_command_time + cooldown
     }
 }
 
@@ -34,31 +48,23 @@ impl CooldownHandler {
 }
 
 #[derive(Clone)]
-pub struct KeyboardControls {
-    skip_seconds: i64,
-}
+pub struct KeyboardControls;
 
 impl KeyboardControls {
-    pub fn new() -> Self {
-        Self {
-            skip_seconds: 10,
-        }
-    }
-
-    pub fn skip_seconds(&self) -> i64 {
-        self.skip_seconds
-    }
+    pub fn new() -> Self { Self { } }
 
     pub fn get_user_input<T: Cooldown, R: BufRead>(
         cooldown_handler: &mut T,
         reader: &mut R,
     ) -> PlayerCommand {
-        let mut input = String::new();
-        
-        // Read user input, return Ignore if it fails
-        if reader.read_line(&mut input).is_err() {
-            return PlayerCommand::Ignore;
-        }
+
+        print!("Available commands:\np - Pause\nq - Quit\n+ - Volume Up\n- - Volume Down\nf - Skip Forward\nb - Skip Backward\n");
+
+        // Read user input safely
+        let input = match Self::read_input(reader) {
+            Ok(valid_input) => valid_input,
+            Err(_) => return PlayerCommand::Ignore,
+        };
 
         // Ignore empty input
         if input.trim().is_empty() {
@@ -68,36 +74,59 @@ impl KeyboardControls {
         // Translate input into a command
         let command = Self::translate_command(&input);
 
-        // Handle valid commands with cooldown logic
-        if matches!(command, PlayerCommand::Ignore) || !cooldown_handler.is_cooldown_elapsed(COOLDOWN) {
+        print!("Cooldown active: {}\n", cooldown_handler.is_cooldown_active(COOLDOWN));
+
+        // Check cooldown
+        if cooldown_handler.is_cooldown_active(COOLDOWN) {
             return PlayerCommand::Ignore;
         }
 
         // Update last command time for valid commands
-        cooldown_handler.update_command_time();
+        if !matches!(command, PlayerCommand::Ignore) {
+            cooldown_handler.update_command_time();
+        }
+
         command
     }
 
 
+    /// Reads user input from the provided reader
+    fn read_input<R: BufRead>(reader: &mut R) -> Result<String, std::io::Error> {
+        let mut input = String::new();
+        reader.read_line(&mut input)?;
+        Ok(input)
+    }
+
+    /// Translates input string into the corresponding `PlayerCommand`
     pub fn translate_command(input: &str) -> PlayerCommand {
-        match input.trim() {
-            "p" => PlayerCommand::Pause,
-            "q" => PlayerCommand::Quit,
-            "+" => PlayerCommand::VolumeUp(VOLUME_STEP),
-            "-" => PlayerCommand::VolumeDown(VOLUME_STEP),
-            "f" => PlayerCommand::SkipForward(SKIP_SECONDS),
-            "b" => PlayerCommand::SkipBackward(SKIP_SECONDS),
-            _ => PlayerCommand::Ignore,
+        COMMAND_MAP.get(input.trim()).cloned().unwrap_or(PlayerCommand::Ignore)
+    }
+
+    // pub fn translate_command(input: &str) -> PlayerCommand {
+    //     match input.trim() {
+    //         "p" => PlayerCommand::Pause,
+    //         "q" => PlayerCommand::Quit,
+    //         "+" => PlayerCommand::VolumeUp(VOLUME_STEP),
+    //         "-" => PlayerCommand::VolumeDown(VOLUME_STEP),
+    //         "f" => PlayerCommand::SkipForward(SKIP_SECONDS),
+    //         "b" => PlayerCommand::SkipBackward(SKIP_SECONDS),
+    //         _ => PlayerCommand::Ignore,
+    //     }
+    // }
+
+    pub fn print_help() {
+        for (shortcut, _command) in COMMAND_MAP.iter() {
+            println!("{}", shortcut);
         }
     }
 
-    pub fn print_help(&self) {
-        println!("Available commands:");
-        println!("p - Pause");
-        println!("q - Quit");
-        println!("+ - Volume Up");
-        println!("- - Volume Down");
-        println!("f - Skip Forward");
-        println!("b - Skip Backward");
-    }
+    // pub fn print_help(&self) {
+    //     println!("Available commands:");
+    //     println!("p - Pause");
+    //     println!("q - Quit");
+    //     println!("+ - Volume Up");
+    //     println!("- - Volume Down");
+    //     println!("f - Skip Forward");
+    //     println!("b - Skip Backward");
+    // }
 }

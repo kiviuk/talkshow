@@ -9,7 +9,7 @@ pub fn play_episode<T: AudioPlayerTrait>(
     episode: &Episode,
 ) -> Result<()> {
     player.play(episode)?;
-    KeyboardControls::new().print_help();
+    KeyboardControls::print_help();
     run(player)
 }
 
