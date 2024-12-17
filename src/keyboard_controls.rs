@@ -1,3 +1,4 @@
+use log::{debug, info};
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::time::{Duration, Instant};
@@ -57,9 +58,6 @@ impl KeyboardControls {
         cooldown_handler: &mut T,
         reader: &mut R,
     ) -> PlayerCommand {
-
-        print!("Available commands:\np - Pause\nq - Quit\n+ - Volume Up\n- - Volume Down\nf - Skip Forward\nb - Skip Backward\n");
-
         // Read user input safely
         let input = match Self::read_input(reader) {
             Ok(valid_input) => valid_input,
@@ -74,7 +72,7 @@ impl KeyboardControls {
         // Translate input into a command
         let command = Self::translate_command(&input);
 
-        print!("Cooldown active: {}\n", cooldown_handler.is_cooldown_active(COOLDOWN));
+        debug!("Cooldown active: {}", cooldown_handler.is_cooldown_active(COOLDOWN));
 
         // Check cooldown
         if cooldown_handler.is_cooldown_active(COOLDOWN) {
@@ -102,31 +100,10 @@ impl KeyboardControls {
         COMMAND_MAP.get(input.trim()).cloned().unwrap_or(PlayerCommand::Ignore)
     }
 
-    // pub fn translate_command(input: &str) -> PlayerCommand {
-    //     match input.trim() {
-    //         "p" => PlayerCommand::Pause,
-    //         "q" => PlayerCommand::Quit,
-    //         "+" => PlayerCommand::VolumeUp(VOLUME_STEP),
-    //         "-" => PlayerCommand::VolumeDown(VOLUME_STEP),
-    //         "f" => PlayerCommand::SkipForward(SKIP_SECONDS),
-    //         "b" => PlayerCommand::SkipBackward(SKIP_SECONDS),
-    //         _ => PlayerCommand::Ignore,
-    //     }
-    // }
-
     pub fn print_help() {
         for (shortcut, _command) in COMMAND_MAP.iter() {
             println!("{}", shortcut);
         }
     }
 
-    // pub fn print_help(&self) {
-    //     println!("Available commands:");
-    //     println!("p - Pause");
-    //     println!("q - Quit");
-    //     println!("+ - Volume Up");
-    //     println!("- - Volume Down");
-    //     println!("f - Skip Forward");
-    //     println!("b - Skip Backward");
-    // }
 }

@@ -1,4 +1,6 @@
 use anyhow::Result;
+use env_logger::Env;
+use log::{info, error};
 use rss_reader::{
     audio_player::AudioPlayer, 
     fetch_episodes, 
@@ -10,6 +12,40 @@ use rss_reader::{
 mod tui;
 
 fn main() -> Result<()> {
+    // Initialize logging
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
+
+    info!("Starting RSS Reader Application");
+
+    // Fetch and read RSS feeds
+    let feeds = match read_rss_feeds("rss-db.txt") {
+        Ok(feeds) => {
+            info!("Successfully read RSS feeds");
+            feeds
+        },
+        Err(e) => {
+            error!("Failed to read RSS feeds: {}", e);
+            return Err(e);
+        }
+    };
+
+    // Fetch episodes
+    let episodes = match fetch_episodes(&feeds.first().ok_or_else(|| anyhow::anyhow!("No feeds found"))?) {
+        Ok(episodes) => {
+            info!("Successfully fetched episodes");
+            episodes
+        },
+        Err(e) => {
+            error!("Failed to fetch episodes: {}", e);
+            return Err(e);
+        }
+    };
+
+    // Pretty print episodes
+    for episode in &episodes {
+        println!("{}", pretty_print(episode));
+    }
+
     // Example lists for TUI
     let left_items = vec![
         "Podcast 1".to_string(), 
@@ -22,17 +58,12 @@ fn main() -> Result<()> {
         "Episode C".to_string()
     ];
 
-    // Option to launch TUI
+    // Initialize TUI
     let mut tui = tui::Tui::new(left_items, right_items)?;
+    
+    info!("Launching Terminal User Interface");
     tui.run()?;
 
-    let feed_url = read_rss_feeds("rss-db.txt")?
-        .first()
-        .ok_or_else(|| anyhow::anyhow!("No feeds found"))?
-        .clone();
-    
-    let episodes = fetch_episodes(&feed_url)?;
-    
     // List episodes
     for (i, episode) in episodes.iter().enumerate() {
         println!("{}. {}", i + 1, episode.title);
