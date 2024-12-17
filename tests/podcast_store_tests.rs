@@ -1,10 +1,10 @@
-use rss_reader::podcast_manager::{Podcast, PodcastManager, load_podcasts};
+use rss_reader::podcast_manager::{Podcast, PodcastStore, load_podcasts};
 use rss_reader::episodes::Episode;
 use anyhow::Result;
 
 #[test]
 fn test_podcast_manager() {
-    let mut manager = PodcastManager::new();
+    let mut manager = PodcastStore::new();
 
     // Create some dummy episodes
     let podcast1_episodes = vec![
@@ -90,7 +90,7 @@ fn test_load_podcasts() -> Result<()> {
     };
 
     // Create a podcast manager and load podcasts
-    let mut podcast_manager = PodcastManager::new();
+    let mut podcast_manager = PodcastStore::new();
     load_podcasts("dummy_path", &mut podcast_manager, mock_read_rss_feeds, mock_fetch_episodes)?;
 
     // Verify the podcasts were loaded correctly

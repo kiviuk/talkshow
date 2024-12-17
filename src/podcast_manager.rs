@@ -46,11 +46,11 @@ impl Podcast {
     }
 }
 
-pub struct PodcastManager {
+pub struct PodcastStore {
     podcasts: HashMap<String, Podcast>,
 }
 
-impl PodcastManager {
+impl PodcastStore {
     pub fn new() -> Self {
         Self {
             podcasts: HashMap::new(),
@@ -80,7 +80,7 @@ impl PodcastManager {
 
 pub fn load_podcasts(
     filename: &str, 
-    podcast_manager: &mut PodcastManager, 
+    podcast_manager: &mut PodcastStore, 
     read_feeds_fn: impl Fn(&str) -> Result<Vec<String>>,
     fetch_episodes_fn: impl Fn(&str) -> Result<Vec<Episode>>
 ) -> Result<()> {
