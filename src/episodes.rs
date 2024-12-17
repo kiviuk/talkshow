@@ -2,14 +2,14 @@ use anyhow::{Context, Result};
 use rss::Channel;
 use std::time::Duration;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct Episode {
     pub title: String,
-    pub audio_url: Option<String>,
-    pub duration: Option<Duration>,
     pub link: Option<String>,
-    pub pub_date: Option<String>,
     pub description: Option<String>,
+    pub pub_date: Option<String>,
+    pub duration: Option<Duration>,
+    pub audio_url: Option<String>,
 }
 
 impl Episode {
