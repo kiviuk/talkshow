@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::time::{SystemTime, Duration};
-use crate::episodes::{Episode, read_rss_feeds};
+use std::time::SystemTime;
+use crate::episodes::Episode;
 use anyhow::Result;
 
 #[derive(Debug, Clone)]
