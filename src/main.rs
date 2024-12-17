@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     };
 
     // Fetch episodes
-    let episodes = match fetch_episodes(&feeds.first().ok_or_else(|| anyhow::anyhow!("No feeds found"))?) {
+    let episodes: Vec<rss_reader::Episode> = match fetch_episodes(&feeds.first().ok_or_else(|| anyhow::anyhow!("No feeds found"))?) {
         Ok(episodes) => {
             info!("Successfully fetched episodes");
             episodes

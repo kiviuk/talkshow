@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, Duration};
-use crate::episodes::Episode;
+use crate::episodes::{Episode, read_rss_feeds};
+use anyhow::Result;
 
 #[derive(Debug, Clone)]
 pub struct Podcast {
@@ -75,4 +76,31 @@ impl PodcastManager {
     pub fn get_episodes(&self, feed_url: &str) -> Option<&[Episode]> {
         self.podcasts.get(feed_url).map(|podcast| podcast.episodes())
     }
+}
+
+pub fn load_podcasts(
+    filename: &str, 
+    podcast_manager: &mut PodcastManager, 
+    fetch_episodes_fn: impl Fn(&str) -> Result<Vec<Episode>>
+) -> Result<()> {
+    let feed_urls = crate::episodes::read_rss_feeds(filename)?;
+    
+    for feed_url in feed_urls {
+        let episodes = fetch_episodes_fn(&feed_url)?;
+        
+        // Extract title from first episode or use feed URL
+        let title = episodes.first()
+            .map(|ep| ep.title.clone())
+            .unwrap_or_else(|| feed_url.clone());
+        
+        let podcast = Podcast::new(
+            feed_url.clone(), 
+            title, 
+            episodes
+        );
+        
+        podcast_manager.add_podcast(podcast);
+    }
+    
+    Ok(())
 }
