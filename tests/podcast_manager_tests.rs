@@ -1,5 +1,6 @@
-use rss_reader::podcast_manager::{Podcast, PodcastManager};
+use rss_reader::podcast_manager::{Podcast, PodcastManager, load_podcasts};
 use rss_reader::episodes::Episode;
+use anyhow::Result;
 
 #[test]
 fn test_podcast_manager() {
@@ -61,4 +62,50 @@ fn test_podcast_manager() {
     let podcast2_eps = manager.get_episodes("https://example.com/podcast2");
     assert!(podcast2_eps.is_some());
     assert_eq!(podcast2_eps.unwrap().len(), 1);
+}
+
+#[test]
+fn test_load_podcasts() -> Result<()> {
+    // Mock read_rss_feeds function
+    let mock_read_rss_feeds = |_: &str| -> Result<Vec<String>> {
+        Ok(vec![
+            "https://example.com/podcast1".to_string(),
+            "https://example.com/podcast2".to_string(),
+        ])
+    };
+
+    // Mock fetch_episodes function
+    let mock_fetch_episodes = |feed_url: &str| -> Result<Vec<Episode>> {
+        // Create mock episodes based on feed URL
+        Ok(vec![
+            Episode {
+                title: format!("{} - Episode 1", feed_url),
+                ..Default::default()
+            },
+            Episode {
+                title: format!("{} - Episode 2", feed_url),
+                ..Default::default()
+            }
+        ])
+    };
+
+    // Create a podcast manager and load podcasts
+    let mut podcast_manager = PodcastManager::new();
+    load_podcasts("dummy_path", &mut podcast_manager, mock_read_rss_feeds, mock_fetch_episodes)?;
+
+    // Verify the podcasts were loaded correctly
+    assert_eq!(podcast_manager.list_podcast_urls().len(), 2);
+    assert!(podcast_manager.list_podcast_urls().contains(&"https://example.com/podcast1".to_string()));
+    assert!(podcast_manager.list_podcast_urls().contains(&"https://example.com/podcast2".to_string()));
+
+    // Verify episodes were fetched and added
+    let podcast1 = podcast_manager.get_podcast("https://example.com/podcast1").unwrap();
+    assert_eq!(podcast1.episodes().len(), 2);
+    assert_eq!(podcast1.title(), "https://example.com/podcast1 - Episode 1");
+
+    let podcast2 = podcast_manager.get_podcast("https://example.com/podcast2").unwrap();
+    assert_eq!(podcast2.episodes().len(), 2);
+    assert_eq!(podcast2.title(), "https://example.com/podcast2 - Episode 1");
+
+    Ok(())
 }

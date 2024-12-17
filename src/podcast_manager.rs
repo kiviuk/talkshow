@@ -81,9 +81,10 @@ impl PodcastManager {
 pub fn load_podcasts(
     filename: &str, 
     podcast_manager: &mut PodcastManager, 
+    read_feeds_fn: impl Fn(&str) -> Result<Vec<String>>,
     fetch_episodes_fn: impl Fn(&str) -> Result<Vec<Episode>>
 ) -> Result<()> {
-    let feed_urls = crate::episodes::read_rss_feeds(filename)?;
+    let feed_urls = read_feeds_fn(filename)?;
     
     for feed_url in feed_urls {
         let episodes = fetch_episodes_fn(&feed_url)?;
