@@ -1,6 +1,6 @@
 use anyhow::Result;
 use crate::audio_player::{AudioPlayerTrait, PlayerCommand};
-use crate::keyboard_controls::{KeyboardControls, CooldownHandler};
+use crate::keyboard_controls::{KeyboardControls, CooldownHandler, Cooldown};
 use crate::episodes::Episode;
 use std::io;
 
@@ -10,16 +10,25 @@ pub fn play_episode<T: AudioPlayerTrait>(
 ) -> Result<()> {
     player.play(episode)?;
     KeyboardControls::print_help();
-    run(player)
-}
-
-pub fn run<T: AudioPlayerTrait>(player: &mut T) -> Result<()> {
-    let mut cooldown_handler = CooldownHandler::new();
-
+    
     let stdin = io::stdin();
     let mut stdin_locked = stdin.lock();
+    let get_stdin_command = |cooldown_handler: &mut CooldownHandler| {
+        let mut handler = cooldown_handler.clone();
+        get_next_command(&mut handler, &mut stdin_locked)
+    };
+    
+    run(player, get_stdin_command)
+}
+
+pub fn run<T: AudioPlayerTrait>(
+    player: &mut T,
+    mut get_command: impl FnMut(&mut CooldownHandler) -> PlayerCommand
+) -> Result<()> {
+    let mut cooldown_handler: CooldownHandler = CooldownHandler::new();
+
     loop {
-        let command: PlayerCommand = KeyboardControls::get_user_input(&mut cooldown_handler, &mut stdin_locked);
+        let command = get_command(&mut cooldown_handler);
         match command {
             PlayerCommand::Quit => break,
             PlayerCommand::Ignore => continue,
@@ -27,6 +36,13 @@ pub fn run<T: AudioPlayerTrait>(player: &mut T) -> Result<()> {
         }
     }
     Ok(())
+}
+
+pub fn get_next_command<T: Cooldown, R: io::BufRead>(
+    cooldown_handler: &mut T, 
+    input: &mut R
+) -> PlayerCommand {
+    KeyboardControls::get_user_input(cooldown_handler, input)
 }
 
 pub fn process_command<T: AudioPlayerTrait>(

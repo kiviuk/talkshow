@@ -26,6 +26,7 @@ pub trait Cooldown {
     fn is_cooldown_active(&self, cooldown: Duration) -> bool;
 }
 
+#[derive(Clone)]
 pub struct CooldownHandler {
     last_command_time: Instant,
 }

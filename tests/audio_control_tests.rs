@@ -1,9 +1,12 @@
-use rss_reader::audio_control::process_command;
+use rss_reader::audio_control::{process_command, run, get_next_command};
 use rss_reader::audio_player::{AudioPlayerTrait, PlayerCommand};
+use rss_reader::keyboard_controls::{CooldownHandler, Cooldown};
 use rss_reader::episodes::Episode;
 use anyhow::Result;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::io::{Cursor, BufRead};
+use std::time::Duration;
 
 // Mock AudioPlayer for testing
 struct MockAudioPlayer {
@@ -51,6 +54,74 @@ impl MockAudioPlayer {
 
     fn get_actions(&self) -> Vec<String> {
         self.actions.borrow().clone()
+    }
+}
+
+#[test]
+fn test_run_with_mock_input() {
+    let mut player = MockAudioPlayer::new();
+    
+    let commands = vec![
+        PlayerCommand::Pause,
+        PlayerCommand::SkipForward(10),
+        PlayerCommand::SkipBackward(10),
+        PlayerCommand::VolumeUp(0.1),
+        PlayerCommand::VolumeDown(0.1),
+        PlayerCommand::Quit,
+    ];
+    
+    let mut command_iter = commands.into_iter();
+    
+    let result = run(&mut player, |_cooldown_handler: &mut CooldownHandler| -> PlayerCommand {
+        command_iter.next().unwrap_or(PlayerCommand::Quit)
+    });
+    
+    // Check the result
+    assert!(result.is_ok());
+    
+    // Verify the sequence of actions based on input
+    let expected_actions = vec![
+        "pause",
+        "skip: 10",
+        "skip: -10",
+        "volume: 0.1",
+        "volume: -0.1",
+    ];
+    
+    assert_eq!(player.get_actions(), expected_actions);
+}
+
+#[test]
+fn test_get_next_command() {
+    let test_cases = vec![
+        ("p\n", PlayerCommand::Pause),
+        ("q\n", PlayerCommand::Quit),
+        ("+\n", PlayerCommand::VolumeUp(0.1)),
+        ("-\n", PlayerCommand::VolumeDown(0.1)),
+        ("f\n", PlayerCommand::SkipForward(10)),
+        ("b\n", PlayerCommand::SkipBackward(10)),
+    ];
+
+    for (input, expected_command) in test_cases {
+        let mut input_cursor = Cursor::new(input.as_bytes());
+        
+        // Create a custom cooldown handler that always allows commands
+        #[derive(Clone)]
+        struct NoCooldownHandler;
+        impl Cooldown for NoCooldownHandler {
+            fn update_command_time(&mut self) {}
+            fn is_cooldown_active(&self, _cooldown: Duration) -> bool { false }
+        }
+        let mut cooldown_handler = NoCooldownHandler;
+        
+        let command = get_next_command(&mut cooldown_handler, &mut input_cursor);
+        
+        assert_eq!(
+            command, 
+            expected_command, 
+            "Failed for input: {}", 
+            input.trim()
+        );
     }
 }
 
